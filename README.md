@@ -70,7 +70,7 @@ sudo ./cardiovolt -r "/sys/devices/platform/*.pmic/microvolts" save
 ---
 
 ## Why CardioVolt?
-Standard software-level Intrusion Detection Systems (IDS) inspect memory spaces, processes, network packets, or system logs. However, they are blind to physical modifications—such as interposer chips, spy transceivers, or hardware keyloggers soldered directly onto power lines. 
+Standard software-level Intrusion Detection Systems (IDS) inspect memory spaces, processes, network packets, or system logs. However, they are blind to physical modifications, such as interposer chips, spy transceivers, or hardware keyloggers soldered directly onto power lines. 
 
 Because any active physical implant must draw current to operate, it introduces a load that subtly affects the target voltage rail. **CardioVolt** acts like a stethoscope for your hardware. By mapping out the "resting heart rate" and dynamic workload spikes of your system, it seeks to flag the electrical "arrhythmias" caused by malicious physical additions trying to operate silently in the background.
 
