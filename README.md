@@ -75,4 +75,4 @@ Standard software-level Intrusion Detection Systems (IDS) inspect memory spaces,
 Because any active physical implant must draw current to operate, it introduces a load that subtly affects the target voltage rail. **CardioVolt** acts like a stethoscope for your hardware. By mapping out the "resting heart rate" and dynamic workload spikes of your system, it seeks to flag the electrical "arrhythmias" caused by malicious physical additions trying to operate silently in the background.
 
 ## License
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+![License](https://img.shields.io/badge/License-EUPL1.2-green.svg)
