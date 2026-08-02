@@ -18,7 +18,7 @@ jobs:
         include:
           - arch: amd64
             runner: ubuntu-latest
-            build_cmd: v -enable-globals -prod -cflags "-static" -os linux -arch amd64 -o cardiovolt-linux-amd64 .
+            build_cmd: v -enable-globals -cflags "-static" -os linux -arch amd64 -o cardiovolt-linux-amd64 .
             
     steps:
       - name: Checkout
