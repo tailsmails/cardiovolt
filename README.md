@@ -12,13 +12,6 @@ CardioVolt is a lightweight, high-performance command-line utility written in V 
 
 ---
 
-## Quick Start (One-Liner)
-```bash
-pkg update -y && pkg install -y git clang make && if ! command -v v >/dev/null 2>&1; then git clone --depth=1 https://github.com/vlang/v && cd v && make && ./v symlink && cd ..; fi && git clone --depth=1 https://github.com/tailsmails/cardiovolt && cd cardiovolt && v -prod cardiovolt.v -o cardiovolt && ln -sf $(pwd)/cardiovolt $PREFIX/bin/cardiovolt
-```
-
----
-
 ## Usage
 
 *Note: Accessing raw sysfs voltage interfaces generally requires root privileges (`sudo` or a rooted shell).*
