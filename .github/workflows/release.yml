@@ -1,0 +1,46 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            build_cmd: v -enable-globals -prod -cflags "-static" -os linux -arch amd64 -o cardiovolt-linux-amd64 .
+            
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install V
+        uses: vlang/setup-v@v1
+        with:
+          check-latest: true
+
+      - name: Install dependencies
+        run: 
+
+      - name: Build binary
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload to Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          artifacts: cardiovolt-linux-${{ matrix.arch }}
+          generateReleaseNotes: true
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
