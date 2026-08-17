@@ -3,23 +3,64 @@ name: Auto Release
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - '**/*.v'
+      - '**/*.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  APP_NAME: cardiovolt
+  EXTRA_FLAGS: ""
+
 jobs:
-  release:
+  build:
     runs-on: ${{ matrix.runner }}
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: amd64
+          - target: linux-amd64
             runner: ubuntu-latest
-            build_cmd: v -enable-globals -cflags "-static" -os linux -arch amd64 -o cardiovolt-linux-amd64 .
-            
+            v_os: linux
+            setup_cmd: sudo apt-get update && sudo apt-get install -y musl-tools
+            compile_cmd: musl-gcc -O3 -static $MBED_INCS $APP_NAME.c $MBED_SRCS -o $APP_NAME$SUFFIX -lm -lpthread
+            artifact_suffix: -linux-amd64
+
+          - target: linux-arm64
+            runner: ubuntu-latest
+            v_os: linux
+            setup_cmd: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+            compile_cmd: aarch64-linux-gnu-gcc -O3 -static $MBED_INCS $APP_NAME.c $MBED_SRCS -o $APP_NAME$SUFFIX -lm -lpthread
+            artifact_suffix: -linux-arm64
+
+          - target: android-arm64
+            runner: ubuntu-latest
+            v_os: linux
+            setup_cmd: ""
+            compile_cmd: $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang -O3 -fPIE -pie $MBED_INCS $APP_NAME.c $MBED_SRCS -o $APP_NAME$SUFFIX -lm
+            artifact_suffix: -android-arm64
+
+          - target: android-arm
+            runner: ubuntu-latest
+            v_os: linux
+            setup_cmd: ""
+            compile_cmd: $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi28-clang -O3 -fPIE -pie $MBED_INCS $APP_NAME.c $MBED_SRCS -o $APP_NAME$SUFFIX -lm
+            artifact_suffix: -android-arm
+
+          - target: freebsd-amd64
+            runner: ubuntu-latest
+            v_os: freebsd
+            setup_cmd: |
+              sudo apt-get update && sudo apt-get install -y clang lld
+              mkdir -p freebsd-sysroot
+              curl -LSs https://download.freebsd.org/releases/amd64/amd64/14.4-RELEASE/base.txz | tar -xJ -C freebsd-sysroot ./usr/include ./usr/lib ./lib
+            compile_cmd: clang -O3 -static -target x86_64-unknown-freebsd14.4 --sysroot=freebsd-sysroot -fuse-ld=lld $MBED_INCS $APP_NAME.c $MBED_SRCS -o $APP_NAME$SUFFIX -lm -lpthread
+            artifact_suffix: -freebsd-amd64
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,18 +70,67 @@ jobs:
         with:
           check-latest: true
 
-      - name: Install dependencies
-        run: 
+      - name: Setup Compiler Dependencies
+        if: matrix.setup_cmd != ''
+        run: ${{ matrix.setup_cmd }}
 
-      - name: Build binary
-        run: ${{ matrix.build_cmd }}
+      - name: Setup Environment Variables
+        run: |
+          V_ROOT=$(python3 -c "import os, shutil; print(os.path.dirname(os.path.realpath(shutil.which('v'))))")
+          echo "V_ROOT=$V_ROOT" >> $GITHUB_ENV
+          echo "MBED_INCS=-I $V_ROOT/thirdparty/cJSON -I $V_ROOT/thirdparty/vschannel -I $V_ROOT/thirdparty/mbedtls/include -I $V_ROOT/thirdparty/mbedtls/library -I $V_ROOT/thirdparty/mbedtls/3rdparty/everest/include -I $V_ROOT/thirdparty/mbedtls/3rdparty/everest/include/everest" >> $GITHUB_ENV
+          echo "MBED_SRCS=$V_ROOT/thirdparty/cJSON/cJSON.c $V_ROOT/thirdparty/mbedtls/library/*.c" >> $GITHUB_ENV
+          echo "SUFFIX=${{ matrix.artifact_suffix }}" >> $GITHUB_ENV
+
+      - name: Generate C Source
+        run: |
+          v $EXTRA_FLAGS -d no_backtrace -enable-globals -gc none -os ${{ matrix.v_os }} -o $APP_NAME.c .
+
+      - name: Compile Binary
+        run: ${{ matrix.compile_cmd }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}${{ matrix.artifact_suffix }}
+          path: ${{ env.APP_NAME }}${{ matrix.artifact_suffix }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          merge-multiple: true
+
+      - name: Delete older releases and git tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Phase 1: Pruning older releases ==="
+          gh release list --limit 1000 --json tagName --jq '.[].tagName' | while read -r tag; do
+            if [ "$tag" != "latest" ] && [ -n "$tag" ]; then
+              echo "Deleting release: $tag"
+              gh release delete "$tag" --yes --cleanup-tag || true
+            fi
+          done
+
+          echo "=== Phase 2: Pruning orphaned git tags (All Pages) ==="
+          gh api --paginate "repos/${{ github.repository }}/tags" --jq '.[].name' | while read -r tag; do
+            if [ "$tag" != "latest" ] && [ -n "$tag" ]; then
+              echo "Pruning remote git tag ref: $tag"
+              gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$tag" || true
+            fi
+          done
 
       - name: Upload to Release
         uses: ncipollo/release-action@v1
         with:
-          tag: build-${{ github.run_number }}
+          tag: latest
           name: Build ${{ github.run_number }}
-          artifacts: cardiovolt-linux-${{ matrix.arch }}
+          artifacts: ./artifacts/*
           generateReleaseNotes: true
           allowUpdates: true
           token: ${{ secrets.GITHUB_TOKEN }}
